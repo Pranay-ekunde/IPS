@@ -1,6 +1,7 @@
 # 📦 Item & Purchase Management System (IPS)
 
 A full-stack web application for tracking inventory, item types, stock availability, and purchase orders with real-time stock deduction and order management.
+<img width="1915" height="981" alt="Screenshot 2026-09-19 133630" src="https://github.com/user-attachments/assets/151b0e2d-d866-4657-afd3-87d6181d83e7" />
 
 ---
 
