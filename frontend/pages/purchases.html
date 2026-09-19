@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Purchases</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+</head>
+<body>
+  <nav>
+    <span class="brand">📦 IPM System</span>
+    <a href="../index.html">Dashboard</a>
+    <a href="item-types.html">Item Types</a>
+    <a href="items.html">Items</a>
+    <a href="purchases.html" class="active">Purchases</a>
+    <a href="stock.html">Stock</a>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h2>Purchases</h2>
+      <button class="btn btn-primary" onclick="openCreate()">+ New Purchase</button>
+    </div>
+
+    <div id="alert" class="alert"></div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Order ID</th><th>Purchase Date</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="purchase-table"><tr><td colspan="3">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Create / Edit Purchase Modal -->
+  <div class="modal-overlay" id="create-modal">
+    <div class="modal" style="width:680px">
+      <h3 id="create-title">New Purchase</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Order ID *</label>
+          <input type="text" id="order-id" placeholder="PO-00001"/>
+        </div>
+        <div class="form-group">
+          <label>Purchase Date *</label>
+          <input type="date" id="order-date"/>
+        </div>
+      </div>
+
+      <hr style="margin:16px 0"/>
+      <h4 style="margin-bottom:12px;color:#1a237e">Add Items</h4>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Select Item</label>
+          <select id="line-item"></select>
+        </div>
+        <div class="form-group">
+          <label>Quantity</label>
+          <input type="number" id="line-qty" min="1" value="1"/>
+        </div>
+      </div>
+      <button class="btn btn-success btn-sm" onclick="addLine()">+ Add to Order</button>
+
+      <table class="order-table" style="margin-top:16px">
+        <thead>
+          <tr><th>Item</th><th>Qty</th><th>Action</th></tr>
+        </thead>
+        <tbody id="order-lines"><tr><td colspan="3" style="color:#999">No items added yet</td></tr></tbody>
+      </table>
+
+      <div class="modal-footer">
+        <button class="btn btn-warning" onclick="closeCreate()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitPurchase()">Submit Purchase</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Purchase Modal -->
+  <div class="modal-overlay" id="view-modal">
+    <div class="modal" style="width:680px">
+      <h3>Purchase Details</h3>
+      <div id="view-content"></div>
+      <div class="modal-footer">
+        <button class="btn btn-warning" onclick="document.getElementById('view-modal').classList.remove('show')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script>
+    let orderLines = [];
+    let editPurchaseId = null;
+    let activeItems = [];
+
+    async function load() {
+      try {
+        const purchases = await apiFetch('/purchases');
+        const tb = document.getElementById('purchase-table');
+        if (!purchases.length) { tb.innerHTML = '<tr><td colspan="3">No purchases found.</td></tr>'; return; }
+        tb.innerHTML = purchases.map(p => `
+          <tr>
+            <td>${p.order_id}</td>
+            <td>${formatDate(p.purchase_date)}</td>
+            <td>
+              <button class="btn btn-info btn-sm" onclick="viewPurchase(${p.id})">View</button>
+              <button class="btn btn-primary btn-sm" onclick="openEdit(${p.id})">Edit</button>
+            </td>
+          </tr>`).join('');
+      } catch (e) { showAlert(document.getElementById('alert'), e.message, 'danger'); }
+    }
+
+    async function openCreate() {
+      editPurchaseId = null;
+      orderLines = [];
+      document.getElementById('create-title').textContent = 'New Purchase';
+      document.getElementById('order-id').value = '';
+      document.getElementById('order-id').disabled = false;
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      document.getElementById('order-date').value = `${year}-${month}-${day}`;
+      await loadActiveItems();
+      renderLines();
+      document.getElementById('create-modal').classList.add('show');
+    }
+
+    async function openEdit(id) {
+      editPurchaseId = id;
+      await loadActiveItems();
+      const p = await apiFetch(`/purchases/${id}`);
+      document.getElementById('create-title').textContent = `Edit Purchase — ${p.order_id}`;
+      document.getElementById('order-id').value = p.order_id;
+      document.getElementById('order-id').disabled = true;
+      document.getElementById('order-date').value = p.purchase_date ? p.purchase_date.split('T')[0] : '';
+      orderLines = p.items.map(i => ({ item_id: i.item_id, item_name: i.item_name, quantity: i.quantity }));
+      renderLines();
+      document.getElementById('create-modal').classList.add('show');
+    }
+
+    function closeCreate() {
+      document.getElementById('create-modal').classList.remove('show');
+      editPurchaseId = null;
+      orderLines = [];
+    }
+
+    async function loadActiveItems() {
+      const all = await apiFetch('/items');
+      activeItems = all.filter(i => i.active);
+      const sel = document.getElementById('line-item');
+      if (!activeItems.length) { sel.innerHTML = '<option value="">No active items</option>'; return; }
+      sel.innerHTML = activeItems.map(i =>
+        `<option value="${i.id}">${i.name} (Stock: ${i.stock_available})</option>`
+      ).join('');
+    }
+
+    function addLine() {
+      const sel = document.getElementById('line-item');
+      const qty = parseInt(document.getElementById('line-qty').value);
+      if (!sel.value || isNaN(qty) || qty <= 0) return alert('Select an item and enter a valid quantity');
+      const item_id = parseInt(sel.value);
+      const rawText = sel.options[sel.selectedIndex].text;
+      const item_name = rawText.split(' (Stock:')[0];
+      if (orderLines.find(l => l.item_id === item_id))
+        return alert('This item is already in the order');
+      orderLines.push({ item_id, item_name, quantity: qty });
+      renderLines();
+    }
+
+    function removeLine(idx) {
+      orderLines.splice(idx, 1);
+      renderLines();
+    }
+
+    function renderLines() {
+      const tb = document.getElementById('order-lines');
+      if (!orderLines.length) {
+        tb.innerHTML = '<tr><td colspan="3" style="color:#999">No items added yet</td></tr>';
+        return;
+      }
+      tb.innerHTML = orderLines.map((l, i) => `
+        <tr>
+          <td>${l.item_name}</td>
+          <td>${l.quantity}</td>
+          <td><button class="btn btn-danger btn-sm" onclick="removeLine(${i})">Remove</button></td>
+        </tr>`).join('');
+    }
+
+    async function submitPurchase() {
+      const order_id = document.getElementById('order-id').value.trim();
+      const purchase_date = document.getElementById('order-date').value;
+      if (!order_id) return alert('Order ID is required');
+      if (!purchase_date) return alert('Purchase date is required');
+      if (!orderLines.length) return alert('Add at least one item');
+
+      const payload = {
+        order_id,
+        purchase_date,
+        items: orderLines.map(l => ({ item_id: l.item_id, quantity: l.quantity }))
+      };
+
+      try {
+        if (editPurchaseId) {
+          await apiFetch(`/purchases/${editPurchaseId}`, { method: 'PUT', body: JSON.stringify(payload) });
+          showAlert(document.getElementById('alert'), 'Purchase updated successfully');
+        } else {
+          await apiFetch('/purchases', { method: 'POST', body: JSON.stringify(payload) });
+          showAlert(document.getElementById('alert'), 'Purchase created successfully');
+        }
+        closeCreate();
+        load();
+      } catch (e) { showAlert(document.getElementById('alert'), e.message, 'danger'); }
+    }
+
+    async function viewPurchase(id) {
+      try {
+        const p = await apiFetch(`/purchases/${id}`);
+        const rows = (p.items || []).map(i => `
+          <tr>
+            <td>${i.item_id}</td>
+            <td>${i.item_name}</td>
+            <td>${i.type_name || 'Unassigned'}</td>
+            <td>${i.quantity}</td>
+            <td>${stockBadge(i.stock_available)}</td>
+          </tr>`).join('');
+        document.getElementById('view-content').innerHTML = `
+          <p><b>Order ID:</b> ${p.order_id}</p>
+          <p style="margin:8px 0"><b>Purchase Date:</b> ${formatDate(p.purchase_date)}</p>
+          <table style="margin-top:16px;width:100%">
+            <thead>
+              <tr><th>Item ID</th><th>Name</th><th>Type</th><th>Qty</th><th>Stock</th></tr>
+            </thead>
+            <tbody>${rows || '<tr><td colspan="5">No items found</td></tr>'}</tbody>
+          </table>`;
+        document.getElementById('view-modal').classList.add('show');
+      } catch (e) { showAlert(document.getElementById('alert'), e.message, 'danger'); }
+    }
+
+    load();
+  </script>
+</body>
+</html>

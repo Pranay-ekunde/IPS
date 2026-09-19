@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Stock Overview</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+</head>
+<body>
+  <nav>
+    <span class="brand">📦 IPM System</span>
+    <a href="../index.html">Dashboard</a>
+    <a href="item-types.html">Item Types</a>
+    <a href="items.html">Items</a>
+    <a href="purchases.html">Purchases</a>
+    <a href="stock.html" class="active">Stock</a>
+  </nav>
+
+  <div class="container">
+    <h2>Stock / Availability Overview</h2>
+
+    <div class="form-row" style="margin-bottom:20px">
+      <div class="card" style="text-align:center">
+        <div style="font-size:1.8rem;font-weight:700;color:#2e7d32" id="stat-instock">—</div>
+        <div style="color:#666;margin-top:4px">In Stock (>5)</div>
+      </div>
+      <div class="card" style="text-align:center">
+        <div style="font-size:1.8rem;font-weight:700;color:#e65100" id="stat-low">—</div>
+        <div style="color:#666;margin-top:4px">Low Stock (1–5)</div>
+      </div>
+      <div class="card" style="text-align:center">
+        <div style="font-size:1.8rem;font-weight:700;color:#c62828" id="stat-out">—</div>
+        <div style="color:#666;margin-top:4px">Out of Stock (0)</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="margin-bottom:12px;display:flex;gap:12px;align-items:center">
+        <label style="display:inline;font-weight:600">Filter:</label>
+        <select id="filter" onchange="renderTable()" style="width:180px">
+          <option value="all">All Items</option>
+          <option value="instock">In Stock</option>
+          <option value="low">Low Stock</option>
+          <option value="out">Out of Stock</option>
+        </select>
+      </div>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Name</th><th>Type</th><th>Stock</th><th>Availability</th><th>Status</th></tr>
+        </thead>
+        <tbody id="stock-table"><tr><td colspan="6">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script>
+    let allItems = [];
+
+    async function load() {
+      try {
+        allItems = await apiFetch('/items');
+        const inStock = allItems.filter(i => i.stock_available > 5).length;
+        const low = allItems.filter(i => i.stock_available > 0 && i.stock_available <= 5).length;
+        const out = allItems.filter(i => i.stock_available === 0).length;
+        document.getElementById('stat-instock').textContent = inStock;
+        document.getElementById('stat-low').textContent = low;
+        document.getElementById('stat-out').textContent = out;
+        renderTable();
+      } catch (e) { console.error(e); }
+    }
+
+    function renderTable() {
+      const filter = document.getElementById('filter').value;
+      let items = allItems;
+      if (filter === 'instock') items = allItems.filter(i => i.stock_available > 5);
+      else if (filter === 'low') items = allItems.filter(i => i.stock_available > 0 && i.stock_available <= 5);
+      else if (filter === 'out') items = allItems.filter(i => i.stock_available === 0);
+
+      const tb = document.getElementById('stock-table');
+      if (!items.length) { tb.innerHTML = '<tr><td colspan="6">No items match this filter.</td></tr>'; return; }
+      tb.innerHTML = items.map(i => `
+        <tr>
+          <td>${i.id}</td>
+          <td>${i.name}</td>
+          <td>${i.type_name || 'Unassigned'}</td>
+          <td><b>${i.stock_available}</b></td>
+          <td>${stockBadge(i.stock_available)}</td>
+          <td>${activeBadge(i.active)}</td>
+        </tr>`).join('');
+    }
+
+    load();
+  </script>
+</body>
+</html>

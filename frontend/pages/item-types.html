@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Item Types</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+</head>
+<body>
+  <nav>
+    <span class="brand">📦 IPM System</span>
+    <a href="../index.html">Dashboard</a>
+    <a href="item-types.html" class="active">Item Types</a>
+    <a href="items.html">Items</a>
+    <a href="purchases.html">Purchases</a>
+    <a href="stock.html">Stock</a>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h2>Item Types</h2>
+      <button class="btn btn-primary" onclick="openModal()">+ Add Type</button>
+    </div>
+
+    <div id="alert" class="alert"></div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Type Name</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="type-table"><tr><td colspan="3">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modal">
+    <div class="modal">
+      <h3 id="modal-title">Add Item Type</h3>
+      <div class="form-group">
+        <label>Type Name *</label>
+        <input type="text" id="type-name" placeholder="e.g. Electronics"/>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-warning" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveType()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script>
+    let editId = null;
+
+    async function load() {
+      try {
+        const types = await apiFetch('/item-types');
+        const tb = document.getElementById('type-table');
+        if (!types.length) { tb.innerHTML = '<tr><td colspan="3">No item types found.</td></tr>'; return; }
+        tb.innerHTML = types.map((t, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${t.type_name}</td>
+            <td>
+              <button class="btn btn-info btn-sm" onclick="openModal(${t.id}, '${t.type_name}')">Edit</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteType(${t.id})">Delete</button>
+            </td>
+          </tr>`).join('');
+      } catch (e) { showAlert(document.getElementById('alert'), e.message, 'danger'); }
+    }
+
+    function openModal(id, name) {
+      editId = id || null;
+      document.getElementById('modal-title').textContent = id ? 'Edit Item Type' : 'Add Item Type';
+      document.getElementById('type-name').value = name || '';
+      document.getElementById('modal').classList.add('show');
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.remove('show');
+      editId = null;
+    }
+
+    async function saveType() {
+      const name = document.getElementById('type-name').value.trim();
+      if (!name) return alert('Type name is required');
+      try {
+        if (editId) {
+          await apiFetch(`/item-types/${editId}`, { method: 'PUT', body: JSON.stringify({ type_name: name }) });
+          showAlert(document.getElementById('alert'), 'Item type updated');
+        } else {
+          await apiFetch('/item-types', { method: 'POST', body: JSON.stringify({ type_name: name }) });
+          showAlert(document.getElementById('alert'), 'Item type created');
+        }
+        closeModal();
+        load();
+      } catch (e) { showAlert(document.getElementById('alert'), e.message, 'danger'); }
+    }
+
+    async function deleteType(id) {
+      if (!confirm('Delete this item type?')) return;
+      try {
+        await apiFetch(`/item-types/${id}`, { method: 'DELETE' });
+        showAlert(document.getElementById('alert'), 'Deleted successfully');
+        load();
+      } catch (e) { showAlert(document.getElementById('alert'), e.message, 'danger'); }
+    }
+
+    load();
+  </script>
+</body>
+</html>

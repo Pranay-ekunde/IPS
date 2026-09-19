@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Items</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+</head>
+<body>
+  <nav>
+    <span class="brand">📦 IPM System</span>
+    <a href="../index.html">Dashboard</a>
+    <a href="item-types.html">Item Types</a>
+    <a href="items.html" class="active">Items</a>
+    <a href="purchases.html">Purchases</a>
+    <a href="stock.html">Stock</a>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h2>Items</h2>
+      <button class="btn btn-primary" onclick="openModal()">+ Add Item</button>
+    </div>
+
+    <div id="alert" class="alert"></div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Name</th><th>Type</th><th>Purchase Date</th><th>Stock</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="items-table"><tr><td colspan="7">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Item Modal -->
+  <div class="modal-overlay" id="modal">
+    <div class="modal">
+      <h3 id="modal-title">Add Item</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Item Name *</label>
+          <input type="text" id="item-name" placeholder="e.g. Laptop"/>
+        </div>
+        <div class="form-group">
+          <label>Item Type *</label>
+          <select id="item-type"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Purchase Date *</label>
+          <input type="date" id="item-date"/>
+        </div>
+        <div class="form-group">
+          <label>Stock Available *</label>
+          <input type="number" id="item-stock" min="0" placeholder="0"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Status *</label>
+        <select id="item-active">
+          <option value="1">Active</option>
+          <option value="0">Inactive</option>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-warning" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveItem()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Modal -->
+  <div class="modal-overlay" id="view-modal">
+    <div class="modal">
+      <h3>Item Details</h3>
+      <div id="view-content"></div>
+      <div class="modal-footer">
+        <button class="btn btn-warning" onclick="document.getElementById('view-modal').classList.remove('show')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script>
+    let editId = null;
+    let itemTypes = [];
+
+    async function load() {
+      try {
+        const [types, items] = await Promise.all([apiFetch('/item-types'), apiFetch('/items')]);
+        itemTypes = types;
+        const tb = document.getElementById('items-table');
+        if (!items.length) { tb.innerHTML = '<tr><td colspan="7">No items found.</td></tr>'; return; }
+        tb.innerHTML = items.map(i => `
+          <tr>
+            <td>${i.id}</td>
+            <td>${i.name}</td>
+            <td>${i.type_name || 'Unassigned'}</td>
+            <td>${formatDate(i.purchase_date)}</td>
+            <td>${stockBadge(i.stock_available)}</td>
+            <td>${activeBadge(i.active)}</td>
+            <td>
+              <button class="btn btn-info btn-sm" onclick="viewItem(${i.id})">View</button>
+              <button class="btn btn-primary btn-sm" onclick="openModal(${i.id})">Edit</button>
+              <button class="btn btn-warning btn-sm" onclick="toggleStatus(${i.id})">${i.active ? 'Deactivate' : 'Activate'}</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteItem(${i.id})">Delete</button>
+            </td>
+          </tr>`).join('');
+      } catch (e) { showAlert(document.getElementById('alert'), e.message, 'danger'); }
+    }
+
+    async function openModal(id) {
+      editId = id || null;
+      const sel = document.getElementById('item-type');
+      const types = await apiFetch('/item-types');
+      sel.innerHTML = types.map(t => `<option value="${t.id}">${t.type_name}</option>`).join('');
+
+      if (id) {
+        document.getElementById('modal-title').textContent = 'Edit Item';
+        const item = await apiFetch(`/items/${id}`);
+        document.getElementById('item-name').value = item.name;
+        document.getElementById('item-type').value = item.item_type_id;
+        document.getElementById('item-date').value = item.purchase_date ? item.purchase_date.split('T')[0] : '';
+        document.getElementById('item-stock').value = item.stock_available;
+        document.getElementById('item-active').value = item.active ? '1' : '0';
+      } else {
+        document.getElementById('modal-title').textContent = 'Add Item';
+        document.getElementById('item-name').value = '';
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        document.getElementById('item-date').value = `${year}-${month}-${day}`;
+        document.getElementById('item-stock').value = '0';
+        document.getElementById('item-active').value = '1';
+      }
+      document.getElementById('modal').classList.add('show');
+    }
+
+    function closeModal() { document.getElementById('modal').classList.remove('show'); editId = null; }
+
+    async function saveItem() {
+      const payload = {
+        name: document.getElementById('item-name').value.trim(),
+        item_type_id: document.getElementById('item-type').value,
+        purchase_date: document.getElementById('item-date').value,
+        stock_available: document.getElementById('item-stock').value,
+        active: document.getElementById('item-active').value === '1'
+      };
+      try {
+        if (editId) {
+          await apiFetch(`/items/${editId}`, { method: 'PUT', body: JSON.stringify(payload) });
+          showAlert(document.getElementById('alert'), 'Item updated successfully');
+        } else {
+          await apiFetch('/items', { method: 'POST', body: JSON.stringify(payload) });
+          showAlert(document.getElementById('alert'), 'Item created successfully');
+        }
+        closeModal();
+        load();
+      } catch (e) { showAlert(document.getElementById('alert'), e.message, 'danger'); }
+    }
+
+    async function viewItem(id) {
+      try {
+        const item = await apiFetch(`/items/${id}`);
+        document.getElementById('view-content').innerHTML = `
+          <table style="width:100%">
+            <tr><td><b>ID</b></td><td>${item.id}</td></tr>
+            <tr><td><b>Name</b></td><td>${item.name}</td></tr>
+            <tr><td><b>Type</b></td><td>${item.type_name || 'Unassigned'}</td></tr>
+            <tr><td><b>Purchase Date</b></td><td>${formatDate(item.purchase_date)}</td></tr>
+            <tr><td><b>Stock</b></td><td>${stockBadge(item.stock_available)}</td></tr>
+            <tr><td><b>Status</b></td><td>${activeBadge(item.active)}</td></tr>
+            <tr><td><b>Created</b></td><td>${formatDate(item.created_at)}</td></tr>
+          </table>`;
+        document.getElementById('view-modal').classList.add('show');
+      } catch (e) { showAlert(document.getElementById('alert'), e.message, 'danger'); }
+    }
+
+    async function toggleStatus(id) {
+      try {
+        await apiFetch(`/items/${id}/toggle`, { method: 'PATCH' });
+        showAlert(document.getElementById('alert'), 'Item status updated');
+        load();
+      } catch (e) { showAlert(document.getElementById('alert'), e.message, 'danger'); }
+    }
+
+    async function deleteItem(id) {
+      if (!confirm('Delete this item? This cannot be undone.')) return;
+      try {
+        await apiFetch(`/items/${id}`, { method: 'DELETE' });
+        showAlert(document.getElementById('alert'), 'Item deleted');
+        load();
+      } catch (e) { showAlert(document.getElementById('alert'), e.message, 'danger'); }
+    }
+
+    load();
+  </script>
+</body>
+</html>
