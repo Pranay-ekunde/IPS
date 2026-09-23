@@ -27,9 +27,9 @@
     <div class="card">
       <table>
         <thead>
-          <tr><th>ID</th><th>Name</th><th>Type</th><th>Purchase Date</th><th>Stock</th><th>Status</th><th>Actions</th></tr>
+          <tr><th>ID</th><th>Name</th><th>Type</th><th>Price / Value</th><th>Purchase Date</th><th>Stock</th><th>Status</th><th>Actions</th></tr>
         </thead>
-        <tbody id="items-table"><tr><td colspan="7">Loading...</td></tr></tbody>
+        <tbody id="items-table"><tr><td colspan="8">Loading...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -50,20 +50,26 @@
       </div>
       <div class="form-row">
         <div class="form-group">
+          <label>Price / Value (₹) *</label>
+          <input type="number" id="item-price" step="0.01" min="0" placeholder="0.00"/>
+        </div>
+        <div class="form-group">
           <label>Purchase Date *</label>
           <input type="date" id="item-date"/>
         </div>
+      </div>
+      <div class="form-row">
         <div class="form-group">
           <label>Stock Available *</label>
           <input type="number" id="item-stock" min="0" placeholder="0"/>
         </div>
-      </div>
-      <div class="form-group">
-        <label>Status *</label>
-        <select id="item-active">
-          <option value="1">Active</option>
-          <option value="0">Inactive</option>
-        </select>
+        <div class="form-group">
+          <label>Status *</label>
+          <select id="item-active">
+            <option value="1">Active</option>
+            <option value="0">Inactive</option>
+          </select>
+        </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-warning" onclick="closeModal()">Cancel</button>
@@ -93,12 +99,13 @@
         const [types, items] = await Promise.all([apiFetch('/item-types'), apiFetch('/items')]);
         itemTypes = types;
         const tb = document.getElementById('items-table');
-        if (!items.length) { tb.innerHTML = '<tr><td colspan="7">No items found.</td></tr>'; return; }
+        if (!items.length) { tb.innerHTML = '<tr><td colspan="8">No items found.</td></tr>'; return; }
         tb.innerHTML = items.map(i => `
           <tr>
             <td>${i.id}</td>
-            <td>${i.name}</td>
+            <td><b>${i.name}</b></td>
             <td>${i.type_name || 'Unassigned'}</td>
+            <td><b>${formatCurrency(i.unit_price)}</b></td>
             <td>${formatDate(i.purchase_date)}</td>
             <td>${stockBadge(i.stock_available)}</td>
             <td>${activeBadge(i.active)}</td>
@@ -123,12 +130,14 @@
         const item = await apiFetch(`/items/${id}`);
         document.getElementById('item-name').value = item.name;
         document.getElementById('item-type').value = item.item_type_id;
+        document.getElementById('item-price').value = item.unit_price;
         document.getElementById('item-date').value = item.purchase_date ? item.purchase_date.split('T')[0] : '';
         document.getElementById('item-stock').value = item.stock_available;
         document.getElementById('item-active').value = item.active ? '1' : '0';
       } else {
         document.getElementById('modal-title').textContent = 'Add Item';
         document.getElementById('item-name').value = '';
+        document.getElementById('item-price').value = '0.00';
         const today = new Date();
         const year = today.getFullYear();
         const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -146,6 +155,7 @@
       const payload = {
         name: document.getElementById('item-name').value.trim(),
         item_type_id: document.getElementById('item-type').value,
+        unit_price: document.getElementById('item-price').value,
         purchase_date: document.getElementById('item-date').value,
         stock_available: document.getElementById('item-stock').value,
         active: document.getElementById('item-active').value === '1'
@@ -171,6 +181,7 @@
             <tr><td><b>ID</b></td><td>${item.id}</td></tr>
             <tr><td><b>Name</b></td><td>${item.name}</td></tr>
             <tr><td><b>Type</b></td><td>${item.type_name || 'Unassigned'}</td></tr>
+            <tr><td><b>Unit Price</b></td><td><b>${formatCurrency(item.unit_price)}</b></td></tr>
             <tr><td><b>Purchase Date</b></td><td>${formatDate(item.purchase_date)}</td></tr>
             <tr><td><b>Stock</b></td><td>${stockBadge(item.stock_available)}</td></tr>
             <tr><td><b>Status</b></td><td>${activeBadge(item.active)}</td></tr>

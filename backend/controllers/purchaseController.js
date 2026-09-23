@@ -16,9 +16,11 @@ exports.getOne = async (req, res) => {
     if (purchase.length === 0) return res.status(404).json({ error: 'Purchase not found' });
 
     const [items] = await db.query(`
-      SELECT p.order_id, p.purchase_date,
+      SELECT p.order_id, p.purchase_date, p.total_amount,
              i.id AS item_id, i.name AS item_name, i.stock_available,
-             it.type_name, pi.id AS purchase_item_id, pi.quantity
+             it.type_name, pi.id AS purchase_item_id, pi.quantity,
+             COALESCE(pi.unit_price, i.unit_price) AS unit_price,
+             (pi.quantity * COALESCE(pi.unit_price, i.unit_price)) AS line_total
       FROM purchases p
       JOIN purchase_items pi ON p.id = pi.purchase_id
       JOIN items i ON pi.item_id = i.id
@@ -49,6 +51,9 @@ exports.create = async (req, res) => {
   try {
     await conn.beginTransaction();
 
+    let totalAmount = 0;
+    const validatedLines = [];
+
     // Validate each item
     for (const line of items) {
       if (!line.item_id) throw { status: 400, error: 'item_id is required for each line' };
@@ -61,6 +66,16 @@ exports.create = async (req, res) => {
       if (!rows[0].active) throw { status: 400, error: `Item "${rows[0].name}" is inactive and cannot be purchased` };
       if (rows[0].stock_available < qty)
         throw { status: 409, error: `Insufficient stock for "${rows[0].name}". Available: ${rows[0].stock_available}` };
+
+      const unitPrice = line.unit_price !== undefined ? parseFloat(line.unit_price) : parseFloat(rows[0].unit_price || 0);
+      const lineTotal = qty * unitPrice;
+      totalAmount += lineTotal;
+
+      validatedLines.push({
+        item_id: line.item_id,
+        quantity: qty,
+        unit_price: unitPrice
+      });
     }
 
     // Check duplicate order_id
@@ -69,26 +84,30 @@ exports.create = async (req, res) => {
 
     // Insert purchase header
     const [purchaseResult] = await conn.query(
-      'INSERT INTO purchases (order_id, purchase_date) VALUES (?, ?)',
-      [order_id.trim(), purchase_date]
+      'INSERT INTO purchases (order_id, purchase_date, total_amount) VALUES (?, ?, ?)',
+      [order_id.trim(), purchase_date, totalAmount]
     );
     const purchaseId = purchaseResult.insertId;
 
     // Insert line items and deduct stock
-    for (const line of items) {
-      const qty = parseInt(line.quantity);
+    for (const line of validatedLines) {
       await conn.query(
-        'INSERT INTO purchase_items (purchase_id, item_id, quantity) VALUES (?, ?, ?)',
-        [purchaseId, line.item_id, qty]
+        'INSERT INTO purchase_items (purchase_id, item_id, quantity, unit_price) VALUES (?, ?, ?, ?)',
+        [purchaseId, line.item_id, line.quantity, line.unit_price]
       );
       await conn.query(
         'UPDATE items SET stock_available = stock_available - ? WHERE id = ?',
-        [qty, line.item_id]
+        [line.quantity, line.item_id]
       );
     }
 
     await conn.commit();
-    res.status(201).json({ message: 'Purchase created successfully', purchase_id: purchaseId, order_id: order_id.trim() });
+    res.status(201).json({
+      message: 'Purchase created successfully',
+      purchase_id: purchaseId,
+      order_id: order_id.trim(),
+      total_amount: totalAmount
+    });
   } catch (err) {
     await conn.rollback();
     if (err.status) return res.status(err.status).json({ error: err.error });
@@ -127,6 +146,9 @@ exports.update = async (req, res) => {
         [old.quantity, old.item_id]);
     }
 
+    let totalAmount = 0;
+    const validatedLines = [];
+
     // Validate new items and deduct
     for (const line of items) {
       if (!line.item_id) throw { status: 400, error: 'item_id is required for each line' };
@@ -143,26 +165,34 @@ exports.update = async (req, res) => {
       }
       if (rows[0].stock_available < qty)
         throw { status: 409, error: `Insufficient stock for "${rows[0].name}". Available: ${rows[0].stock_available}` };
+
+      const unitPrice = line.unit_price !== undefined ? parseFloat(line.unit_price) : parseFloat(rows[0].unit_price || 0);
+      totalAmount += qty * unitPrice;
+
+      validatedLines.push({
+        item_id: line.item_id,
+        quantity: qty,
+        unit_price: unitPrice
+      });
     }
 
     // Delete old purchase_items and insert new ones
     await conn.query('DELETE FROM purchase_items WHERE purchase_id = ?', [id]);
-    await conn.query('UPDATE purchases SET purchase_date = ? WHERE id = ?', [purchase_date, id]);
+    await conn.query('UPDATE purchases SET purchase_date = ?, total_amount = ? WHERE id = ?', [purchase_date, totalAmount, id]);
 
-    for (const line of items) {
-      const qty = parseInt(line.quantity);
+    for (const line of validatedLines) {
       await conn.query(
-        'INSERT INTO purchase_items (purchase_id, item_id, quantity) VALUES (?, ?, ?)',
-        [id, line.item_id, qty]
+        'INSERT INTO purchase_items (purchase_id, item_id, quantity, unit_price) VALUES (?, ?, ?, ?)',
+        [id, line.item_id, line.quantity, line.unit_price]
       );
       await conn.query(
         'UPDATE items SET stock_available = stock_available - ? WHERE id = ?',
-        [qty, line.item_id]
+        [line.quantity, line.item_id]
       );
     }
 
     await conn.commit();
-    res.json({ message: 'Purchase updated successfully' });
+    res.json({ message: 'Purchase updated successfully', total_amount: totalAmount });
   } catch (err) {
     await conn.rollback();
     if (err.status) return res.status(err.status).json({ error: err.error });

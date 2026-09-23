@@ -46,9 +46,9 @@
       </div>
       <table>
         <thead>
-          <tr><th>ID</th><th>Name</th><th>Type</th><th>Stock</th><th>Availability</th><th>Status</th></tr>
+          <tr><th>ID</th><th>Name</th><th>Type</th><th>Price / Value</th><th>Stock</th><th>Availability</th><th>Status</th></tr>
         </thead>
-        <tbody id="stock-table"><tr><td colspan="6">Loading...</td></tr></tbody>
+        <tbody id="stock-table"><tr><td colspan="7">Loading...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -78,12 +78,13 @@
       else if (filter === 'out') items = allItems.filter(i => i.stock_available === 0);
 
       const tb = document.getElementById('stock-table');
-      if (!items.length) { tb.innerHTML = '<tr><td colspan="6">No items match this filter.</td></tr>'; return; }
+      if (!items.length) { tb.innerHTML = '<tr><td colspan="7">No items match this filter.</td></tr>'; return; }
       tb.innerHTML = items.map(i => `
         <tr>
           <td>${i.id}</td>
-          <td>${i.name}</td>
+          <td><b>${i.name}</b></td>
           <td>${i.type_name || 'Unassigned'}</td>
+          <td><b>${formatCurrency(i.unit_price)}</b></td>
           <td><b>${i.stock_available}</b></td>
           <td>${stockBadge(i.stock_available)}</td>
           <td>${activeBadge(i.active)}</td>

@@ -207,3 +207,115 @@ tbody tr:hover { background: #f5f5f5; }
   nav { flex-wrap: wrap; height: auto; padding: 8px; }
   nav a { padding: 6px 10px; font-size: 0.8rem; }
 }
+
+/* Receipt Paper Styling */
+.receipt-paper {
+  background: #ffffff;
+  border: 1px dashed #bbb;
+  border-radius: 8px;
+  padding: 24px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #111;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+.receipt-paper .receipt-header {
+  text-align: center;
+  border-bottom: 2px dashed #1a237e;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.receipt-paper .receipt-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #1a237e;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.receipt-paper .receipt-subtitle {
+  font-size: 0.82rem;
+  color: #666;
+  margin-top: 4px;
+}
+
+.receipt-paper .receipt-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  font-size: 0.88rem;
+  background: #f8f9fa;
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+
+.receipt-paper .receipt-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+}
+
+.receipt-paper .receipt-table th {
+  background: #f0f2f5;
+  color: #333;
+  border-bottom: 1px solid #ccc;
+  padding: 8px 6px;
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+.receipt-paper .receipt-table td {
+  padding: 8px 6px;
+  border-bottom: 1px dotted #e0e0e0;
+  font-size: 0.85rem;
+}
+
+.receipt-paper .receipt-summary {
+  border-top: 2px dashed #1a237e;
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+.receipt-paper .summary-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
+
+.receipt-paper .total-row {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #2e7d32;
+  border-top: 2px solid #2e7d32;
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
+.receipt-footer-msg {
+  text-align: center;
+  margin-top: 16px;
+  font-size: 0.82rem;
+  color: #666;
+  border-top: 1px solid #eee;
+  padding-top: 12px;
+}
+
+/* Print styles */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .receipt-paper, .receipt-paper * {
+    visibility: visible;
+  }
+  .receipt-paper {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    border: none;
+    box-shadow: none;
+  }
+}

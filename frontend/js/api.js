@@ -28,6 +28,12 @@ function activeBadge(active) {
     : `<span class="badge badge-danger">Inactive</span>`;
 }
 
+function formatCurrency(val) {
+  const num = parseFloat(val);
+  if (isNaN(num)) return '₹0.00';
+  return '₹' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function formatDate(d) {
   if (!d) return '';
   const dateStr = typeof d === 'string' ? d.split('T')[0] : d;

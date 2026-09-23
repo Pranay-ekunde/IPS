@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Purchases</title>
+  <title>Purchases & Receipts</title>
   <link rel="stylesheet" href="../css/style.css"/>
 </head>
 <body>
@@ -18,7 +18,7 @@
 
   <div class="container">
     <div class="page-header">
-      <h2>Purchases</h2>
+      <h2>Purchases & Receipts</h2>
       <button class="btn btn-primary" onclick="openCreate()">+ New Purchase</button>
     </div>
 
@@ -27,17 +27,17 @@
     <div class="card">
       <table>
         <thead>
-          <tr><th>Order ID</th><th>Purchase Date</th><th>Actions</th></tr>
+          <tr><th>Order ID</th><th>Purchase Date</th><th>Total Amount</th><th>Actions</th></tr>
         </thead>
-        <tbody id="purchase-table"><tr><td colspan="3">Loading...</td></tr></tbody>
+        <tbody id="purchase-table"><tr><td colspan="4">Loading...</td></tr></tbody>
       </table>
     </div>
   </div>
 
   <!-- Create / Edit Purchase Modal -->
   <div class="modal-overlay" id="create-modal">
-    <div class="modal" style="width:680px">
-      <h3 id="create-title">New Purchase</h3>
+    <div class="modal" style="width:720px">
+      <h3 id="create-title">New Purchase Order</h3>
       <div class="form-row">
         <div class="form-group">
           <label>Order ID *</label>
@@ -50,40 +50,101 @@
       </div>
 
       <hr style="margin:16px 0"/>
-      <h4 style="margin-bottom:12px;color:#1a237e">Add Items</h4>
+      <h4 style="margin-bottom:12px;color:#1a237e">Add Items to Cart</h4>
       <div class="form-row">
-        <div class="form-group">
+        <div class="form-group" style="grid-column: span 2;">
           <label>Select Item</label>
           <select id="line-item"></select>
         </div>
+      </div>
+      <div class="form-row">
         <div class="form-group">
           <label>Quantity</label>
           <input type="number" id="line-qty" min="1" value="1"/>
         </div>
+        <div class="form-group" style="display:flex;align-items:flex-end">
+          <button class="btn btn-success" style="width:100%" onclick="addLine()">+ Add to Order</button>
+        </div>
       </div>
-      <button class="btn btn-success btn-sm" onclick="addLine()">+ Add to Order</button>
 
       <table class="order-table" style="margin-top:16px">
         <thead>
-          <tr><th>Item</th><th>Qty</th><th>Action</th></tr>
+          <tr><th>Item</th><th>Unit Price</th><th>Qty</th><th>Subtotal</th><th>Action</th></tr>
         </thead>
-        <tbody id="order-lines"><tr><td colspan="3" style="color:#999">No items added yet</td></tr></tbody>
+        <tbody id="order-lines"><tr><td colspan="5" style="color:#999">No items added yet</td></tr></tbody>
       </table>
+
+      <div id="order-total-bar" style="margin-top:16px;padding:12px 16px;background:#e8eaf6;border-radius:6px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:600;color:#1a237e">Estimated Total:</span>
+        <span style="font-size:1.2rem;font-weight:700;color:#2e7d32" id="order-estimated-total">₹0.00</span>
+      </div>
 
       <div class="modal-footer">
         <button class="btn btn-warning" onclick="closeCreate()">Cancel</button>
-        <button class="btn btn-primary" onclick="submitPurchase()">Submit Purchase</button>
+        <button class="btn btn-primary" onclick="generateReceiptPreview()">🧾 Generate Receipt & Review</button>
       </div>
     </div>
   </div>
 
-  <!-- View Purchase Modal -->
-  <div class="modal-overlay" id="view-modal">
-    <div class="modal" style="width:680px">
-      <h3>Purchase Details</h3>
-      <div id="view-content"></div>
-      <div class="modal-footer">
-        <button class="btn btn-warning" onclick="document.getElementById('view-modal').classList.remove('show')">Close</button>
+  <!-- Receipt Preview & Confirmation Modal -->
+  <div class="modal-overlay" id="receipt-modal">
+    <div class="modal" style="width:700px">
+      <div class="receipt-paper" id="receipt-print-area">
+        <div class="receipt-header">
+          <div class="receipt-title">📦 IPM System</div>
+          <div style="font-size:0.9rem;font-weight:600;color:#555">Official Purchase Receipt</div>
+          <div class="receipt-subtitle">Inventory & Purchase Management System</div>
+        </div>
+
+        <div class="receipt-meta">
+          <div>
+            <div><b>Order ID:</b> <span id="rec-order-id">—</span></div>
+            <div><b>Status:</b> <span id="rec-status-badge" class="badge badge-warning">Preview (Pending)</span></div>
+          </div>
+          <div style="text-align:right">
+            <div><b>Date:</b> <span id="rec-date">—</span></div>
+            <div><b>Issued At:</b> <span id="rec-time">—</span></div>
+          </div>
+        </div>
+
+        <table class="receipt-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Item Description</th>
+              <th style="text-align:center">Qty</th>
+              <th style="text-align:right">Unit Price</th>
+              <th style="text-align:right">Total</th>
+            </tr>
+          </thead>
+          <tbody id="rec-lines"></tbody>
+        </table>
+
+        <div class="receipt-summary">
+          <div class="summary-row">
+            <span>Subtotal:</span>
+            <span id="rec-subtotal">₹0.00</span>
+          </div>
+          <div class="summary-row">
+            <span>Tax (0%):</span>
+            <span>₹0.00</span>
+          </div>
+          <div class="summary-row total-row">
+            <span>TOTAL AMOUNT:</span>
+            <span id="rec-grand-total">₹0.00</span>
+          </div>
+        </div>
+
+        <div class="receipt-footer-msg">
+          *** Thank you for your business! Please keep this receipt for your records. ***
+        </div>
+      </div>
+
+      <div class="modal-footer" style="margin-top:20px">
+        <button class="btn btn-warning" id="rec-btn-edit" onclick="backToEdit()">✏️ Edit Order</button>
+        <button class="btn btn-info" onclick="window.print()">🖨️ Print Receipt</button>
+        <button class="btn btn-success" id="rec-btn-confirm" onclick="confirmPurchase()">✅ Confirm & Complete Purchase</button>
+        <button class="btn btn-warning" id="rec-btn-close" style="display:none" onclick="closeReceipt()">Close</button>
       </div>
     </div>
   </div>
@@ -93,18 +154,20 @@
     let orderLines = [];
     let editPurchaseId = null;
     let activeItems = [];
+    let pendingPurchasePayload = null;
 
     async function load() {
       try {
         const purchases = await apiFetch('/purchases');
         const tb = document.getElementById('purchase-table');
-        if (!purchases.length) { tb.innerHTML = '<tr><td colspan="3">No purchases found.</td></tr>'; return; }
+        if (!purchases.length) { tb.innerHTML = '<tr><td colspan="4">No purchases found.</td></tr>'; return; }
         tb.innerHTML = purchases.map(p => `
           <tr>
-            <td>${p.order_id}</td>
+            <td><b>${p.order_id}</b></td>
             <td>${formatDate(p.purchase_date)}</td>
+            <td><b>${formatCurrency(p.total_amount || 0)}</b></td>
             <td>
-              <button class="btn btn-info btn-sm" onclick="viewPurchase(${p.id})">View</button>
+              <button class="btn btn-info btn-sm" onclick="viewReceipt(${p.id})">🧾 View Receipt</button>
               <button class="btn btn-primary btn-sm" onclick="openEdit(${p.id})">Edit</button>
             </td>
           </tr>`).join('');
@@ -114,7 +177,7 @@
     async function openCreate() {
       editPurchaseId = null;
       orderLines = [];
-      document.getElementById('create-title').textContent = 'New Purchase';
+      document.getElementById('create-title').textContent = 'New Purchase Order';
       document.getElementById('order-id').value = '';
       document.getElementById('order-id').disabled = false;
       const today = new Date();
@@ -131,11 +194,17 @@
       editPurchaseId = id;
       await loadActiveItems();
       const p = await apiFetch(`/purchases/${id}`);
-      document.getElementById('create-title').textContent = `Edit Purchase — ${p.order_id}`;
+      document.getElementById('create-title').textContent = `Edit Purchase Order — ${p.order_id}`;
       document.getElementById('order-id').value = p.order_id;
       document.getElementById('order-id').disabled = true;
       document.getElementById('order-date').value = p.purchase_date ? p.purchase_date.split('T')[0] : '';
-      orderLines = p.items.map(i => ({ item_id: i.item_id, item_name: i.item_name, quantity: i.quantity }));
+      orderLines = (p.items || []).map(i => ({
+        item_id: i.item_id,
+        item_name: i.item_name,
+        type_name: i.type_name,
+        unit_price: parseFloat(i.unit_price || 0),
+        quantity: i.quantity
+      }));
       renderLines();
       document.getElementById('create-modal').classList.add('show');
     }
@@ -152,7 +221,7 @@
       const sel = document.getElementById('line-item');
       if (!activeItems.length) { sel.innerHTML = '<option value="">No active items</option>'; return; }
       sel.innerHTML = activeItems.map(i =>
-        `<option value="${i.id}">${i.name} (Stock: ${i.stock_available})</option>`
+        `<option value="${i.id}" data-price="${i.unit_price}" data-type="${i.type_name || ''}">${i.name} — ${formatCurrency(i.unit_price)} (Stock: ${i.stock_available})</option>`
       ).join('');
     }
 
@@ -161,11 +230,15 @@
       const qty = parseInt(document.getElementById('line-qty').value);
       if (!sel.value || isNaN(qty) || qty <= 0) return alert('Select an item and enter a valid quantity');
       const item_id = parseInt(sel.value);
-      const rawText = sel.options[sel.selectedIndex].text;
-      const item_name = rawText.split(' (Stock:')[0];
+      const opt = sel.options[sel.selectedIndex];
+      const item_name = opt.text.split(' — ')[0];
+      const unit_price = parseFloat(opt.getAttribute('data-price') || 0);
+      const type_name = opt.getAttribute('data-type') || '';
+
       if (orderLines.find(l => l.item_id === item_id))
         return alert('This item is already in the order');
-      orderLines.push({ item_id, item_name, quantity: qty });
+
+      orderLines.push({ item_id, item_name, type_name, unit_price, quantity: qty });
       renderLines();
     }
 
@@ -176,65 +249,143 @@
 
     function renderLines() {
       const tb = document.getElementById('order-lines');
+      let total = 0;
       if (!orderLines.length) {
-        tb.innerHTML = '<tr><td colspan="3" style="color:#999">No items added yet</td></tr>';
+        tb.innerHTML = '<tr><td colspan="5" style="color:#999">No items added yet</td></tr>';
+        document.getElementById('order-estimated-total').textContent = '₹0.00';
         return;
       }
-      tb.innerHTML = orderLines.map((l, i) => `
+      tb.innerHTML = orderLines.map((l, i) => {
+        const subtotal = l.quantity * l.unit_price;
+        total += subtotal;
+        return `
         <tr>
-          <td>${l.item_name}</td>
+          <td><b>${l.item_name}</b></td>
+          <td>${formatCurrency(l.unit_price)}</td>
           <td>${l.quantity}</td>
+          <td><b>${formatCurrency(subtotal)}</b></td>
           <td><button class="btn btn-danger btn-sm" onclick="removeLine(${i})">Remove</button></td>
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
+      document.getElementById('order-estimated-total').textContent = formatCurrency(total);
     }
 
-    async function submitPurchase() {
+    function generateReceiptPreview() {
       const order_id = document.getElementById('order-id').value.trim();
       const purchase_date = document.getElementById('order-date').value;
       if (!order_id) return alert('Order ID is required');
       if (!purchase_date) return alert('Purchase date is required');
-      if (!orderLines.length) return alert('Add at least one item');
+      if (!orderLines.length) return alert('Add at least one item to generate receipt');
 
-      const payload = {
+      pendingPurchasePayload = {
         order_id,
         purchase_date,
-        items: orderLines.map(l => ({ item_id: l.item_id, quantity: l.quantity }))
+        items: orderLines.map(l => ({ item_id: l.item_id, quantity: l.quantity, unit_price: l.unit_price }))
       };
 
-      try {
-        if (editPurchaseId) {
-          await apiFetch(`/purchases/${editPurchaseId}`, { method: 'PUT', body: JSON.stringify(payload) });
-          showAlert(document.getElementById('alert'), 'Purchase updated successfully');
-        } else {
-          await apiFetch('/purchases', { method: 'POST', body: JSON.stringify(payload) });
-          showAlert(document.getElementById('alert'), 'Purchase created successfully');
-        }
-        closeCreate();
-        load();
-      } catch (e) { showAlert(document.getElementById('alert'), e.message, 'danger'); }
+      // Populate Receipt Modal
+      document.getElementById('rec-order-id').textContent = order_id;
+      document.getElementById('rec-status-badge').className = 'badge badge-warning';
+      document.getElementById('rec-status-badge').textContent = 'Preview (Pending Confirmation)';
+      document.getElementById('rec-date').textContent = formatDate(purchase_date);
+      document.getElementById('rec-time').textContent = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+      let total = 0;
+      const recTb = document.getElementById('rec-lines');
+      recTb.innerHTML = orderLines.map((l, idx) => {
+        const subtotal = l.quantity * l.unit_price;
+        total += subtotal;
+        return `
+          <tr>
+            <td>${idx + 1}</td>
+            <td><b>${l.item_name}</b> <small style="color:#666">(${l.type_name || 'Item'})</small></td>
+            <td style="text-align:center">${l.quantity}</td>
+            <td style="text-align:right">${formatCurrency(l.unit_price)}</td>
+            <td style="text-align:right"><b>${formatCurrency(subtotal)}</b></td>
+          </tr>`;
+      }).join('');
+
+      document.getElementById('rec-subtotal').textContent = formatCurrency(total);
+      document.getElementById('rec-grand-total').textContent = formatCurrency(total);
+
+      // Show/Hide buttons for pre-purchase state
+      document.getElementById('rec-btn-confirm').style.display = 'inline-flex';
+      document.getElementById('rec-btn-edit').style.display = 'inline-flex';
+      document.getElementById('rec-btn-close').style.display = 'none';
+
+      // Hide create modal and open receipt modal
+      document.getElementById('create-modal').classList.remove('show');
+      document.getElementById('receipt-modal').classList.add('show');
     }
 
-    async function viewPurchase(id) {
+    function backToEdit() {
+      document.getElementById('receipt-modal').classList.remove('show');
+      document.getElementById('create-modal').classList.add('show');
+    }
+
+    function closeReceipt() {
+      document.getElementById('receipt-modal').classList.remove('show');
+    }
+
+    async function confirmPurchase() {
+      if (!pendingPurchasePayload) return;
+      try {
+        if (editPurchaseId) {
+          await apiFetch(`/purchases/${editPurchaseId}`, { method: 'PUT', body: JSON.stringify(pendingPurchasePayload) });
+          showAlert(document.getElementById('alert'), 'Purchase updated & finalized successfully');
+        } else {
+          await apiFetch('/purchases', { method: 'POST', body: JSON.stringify(pendingPurchasePayload) });
+          showAlert(document.getElementById('alert'), 'Purchase completed & receipt generated successfully');
+        }
+        
+        // Mark receipt as completed
+        document.getElementById('rec-status-badge').className = 'badge badge-success';
+        document.getElementById('rec-status-badge').textContent = 'Completed & Saved';
+        document.getElementById('rec-btn-confirm').style.display = 'none';
+        document.getElementById('rec-btn-edit').style.display = 'none';
+        document.getElementById('rec-btn-close').style.display = 'inline-flex';
+
+        editPurchaseId = null;
+        pendingPurchasePayload = null;
+        orderLines = [];
+        load();
+      } catch (e) { alert(e.message); }
+    }
+
+    async function viewReceipt(id) {
       try {
         const p = await apiFetch(`/purchases/${id}`);
-        const rows = (p.items || []).map(i => `
-          <tr>
-            <td>${i.item_id}</td>
-            <td>${i.item_name}</td>
-            <td>${i.type_name || 'Unassigned'}</td>
-            <td>${i.quantity}</td>
-            <td>${stockBadge(i.stock_available)}</td>
-          </tr>`).join('');
-        document.getElementById('view-content').innerHTML = `
-          <p><b>Order ID:</b> ${p.order_id}</p>
-          <p style="margin:8px 0"><b>Purchase Date:</b> ${formatDate(p.purchase_date)}</p>
-          <table style="margin-top:16px;width:100%">
-            <thead>
-              <tr><th>Item ID</th><th>Name</th><th>Type</th><th>Qty</th><th>Stock</th></tr>
-            </thead>
-            <tbody>${rows || '<tr><td colspan="5">No items found</td></tr>'}</tbody>
-          </table>`;
-        document.getElementById('view-modal').classList.add('show');
+        document.getElementById('rec-order-id').textContent = p.order_id;
+        document.getElementById('rec-status-badge').className = 'badge badge-success';
+        document.getElementById('rec-status-badge').textContent = 'Completed Order';
+        document.getElementById('rec-date').textContent = formatDate(p.purchase_date);
+        document.getElementById('rec-time').textContent = new Date(p.created_at || Date.now()).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+        let total = 0;
+        const recTb = document.getElementById('rec-lines');
+        recTb.innerHTML = (p.items || []).map((l, idx) => {
+          const unitPrice = parseFloat(l.unit_price || 0);
+          const subtotal = l.quantity * unitPrice;
+          total += subtotal;
+          return `
+            <tr>
+              <td>${idx + 1}</td>
+              <td><b>${l.item_name}</b> <small style="color:#666">(${l.type_name || 'Item'})</small></td>
+              <td style="text-align:center">${l.quantity}</td>
+              <td style="text-align:right">${formatCurrency(unitPrice)}</td>
+              <td style="text-align:right"><b>${formatCurrency(subtotal)}</b></td>
+            </tr>`;
+        }).join('');
+
+        const finalTotal = parseFloat(p.total_amount) || total;
+        document.getElementById('rec-subtotal').textContent = formatCurrency(finalTotal);
+        document.getElementById('rec-grand-total').textContent = formatCurrency(finalTotal);
+
+        document.getElementById('rec-btn-confirm').style.display = 'none';
+        document.getElementById('rec-btn-edit').style.display = 'none';
+        document.getElementById('rec-btn-close').style.display = 'inline-flex';
+
+        document.getElementById('receipt-modal').classList.add('show');
       } catch (e) { showAlert(document.getElementById('alert'), e.message, 'danger'); }
     }
 
